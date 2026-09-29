@@ -1,0 +1,44 @@
+body {
+  margin: 0;
+  padding: 24px;
+  font-family: Helvetica, Arial, sans-serif;
+  background: #fff;
+  color: #000;
+}
+
+a {
+  color: inherit;
+}
+
+/* Exercise page grid */
+.grid {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.row {
+  display: flex;
+  justify-content: flex-end;  /* align each row to the right */
+  gap: 16px;
+  height: 240px;              /* every row is the same height */
+}
+
+.row img,
+.row video {
+  height: 100%;               /* fill row height, width scales to keep proportions */
+  width: auto;
+  max-width: 100%;
+  object-fit: contain;
+  display: block;
+}
+
+.description {
+  text-align: right;
+  max-width: 600px;
+  margin: 24px 0 0 auto;      /* push block to the right */
+}
+
+@media (max-width: 600px) {
+  .row { height: 120px; }
+}
