@@ -24,6 +24,19 @@ a {
   height: 240px;              
 }
 
+.rowq {
+  display: flex;
+  justify-content: flex-start; 
+  gap: 16px;
+  height: 240px;              
+}
+.rowq img{
+  height: 100%;               
+  width: 45%;
+  max-width: 100%;
+  object-fit: contain;
+  display: block;
+}
 .row img,
 .row video {
   height: 100%;               
