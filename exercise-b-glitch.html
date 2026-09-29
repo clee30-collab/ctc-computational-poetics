@@ -4,42 +4,94 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Exercise B Glitch</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Akt:wght@100..900&family=Miranda+Sans:ital,wght@0,400..700;1,400..700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
   <a href="index.html">&larr; Assignments</a>
-  <h1>Exercise B Glitch</h1>
+  <p>Exercise B Glitch</p>
 
-  <!-- Each .row is one project. Put your files in the media/ folder
-       and change the src="..." to match the file names. -->
   <div class="grid">
     <div class="row">
       <img src="media/project1-a.jpg" alt="Project 1">
-      <img src="media/project1-b.jpg" alt="Project 1">
+    </div>
+    <div class="row">
+      <img src="media/project5-b.png" alt="Project 5">
     </div>
 
     <div class="row">
-      <img src="media/project2-a.jpg" alt="Project 2">
-      <img src="media/project2-b.jpg" alt="Project 2">
+      <img src="media/project2-a.png" alt="Project 2">
+      <img src="media/project2-b.png" alt="Project 2">
     </div>
 
     <div class="row">
-      <video src="media/project3.mp4" controls loop muted playsinline></video>
+      <img src="media/project3-a.png" alt="Project 3">
+      <img src="media/project3-b.png" alt="Project 3">
     </div>
 
     <div class="row">
       <img src="media/project4-a.jpg" alt="Project 4">
-      <img src="media/project4-b.jpg" alt="Project 4">
-    </div>
-
-    <div class="row">
-      <img src="media/project5-a.jpg" alt="Project 5">
-      <img src="media/project5-b.jpg" alt="Project 5">
+      <video src="media/project4-b.mov" autoplay loop muted playsinline></video>
     </div>
   </div>
 
-  <p class="description">
-    Write your description of the exercise here.
-  </p>
+  <div class="description">
+    <p>
+      I wanted to try out different ways I could create glitches that weren't
+      really manipulated by me, kinda accidental. Instead of going in and
+      replicating what a glitch could look like in Photoshop (overlapping,
+      photo effects, etc.), I wanted to just push certain tools as far as I could.
+    </p>
+    <p>
+      The text I used was the PDF titled <em>OpenGL&reg; Programming Guide,
+      Eighth Edition</em>. I chose this text because I'm learning about shaders
+      and OpenGL in another class, and the text for learning the language is
+      like a glitch to me. It's so confusing and hard to understand that the
+      words aren't even readable.
+    </p>
+    <p>
+      For the first glitch, I compressed and screenshotted a JPEG a bunch of
+      times and manipulated the dimensions until it looked like a squished blob.
+      For the second one, I just converted the image from JPEG to different file
+      formats, then took the picture into Photoshop and added sharpness. For the
+      third glitch, I used <a href="https://hexed.it" target="_blank">hexed.it</a>
+      and just went in and copied and pasted different lines many times. For the
+      fourth one, I compressed the JPEG, then asked ChatGPT to enhance the text. 
+      It made me think about Padgett's creative reading techniques specifically selective attention. The AI fdecied where to focus and was determining what was more or less important to "enhance".
+      For the fifth one, I added the JPEG as a material in Unity and randomly
+      duplicated the image until I got a bunch of layers, then lowered the opacity.
+    </p>
+  </div>
+
+  <div id="popup" class="popup"></div>
+
+  <script>
+    const popup = document.getElementById('popup');
+
+    document.querySelectorAll('.row img, .row video').forEach(function (item) {
+      item.addEventListener('click', function () {
+        const big = item.cloneNode();
+        if (big.tagName === 'VIDEO') {
+          big.muted = false;
+          big.autoplay = true;
+        }
+        popup.innerHTML = '';
+        popup.appendChild(big);
+        popup.classList.add('open');
+      });
+    });
+
+    function closePopup() {
+      popup.classList.remove('open');
+      popup.innerHTML = '';
+    }
+
+    popup.addEventListener('click', closePopup);
+    document.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape') closePopup();
+    });
+  </script>
 </body>
 </html>
