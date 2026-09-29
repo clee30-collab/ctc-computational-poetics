@@ -10,7 +10,7 @@ a {
   color: inherit;
 }
 
-/* Exercise page grid */
+
 .grid {
   display: flex;
   flex-direction: column;
@@ -19,14 +19,14 @@ a {
 
 .row {
   display: flex;
-  justify-content: flex-start; /* align each row to the left */
+  justify-content: flex-start; 
   gap: 16px;
-  height: 240px;              /* every row is the same height */
+  height: 240px;              
 }
 
 .row img,
 .row video {
-  height: 100%;               /* fill row height, width scales to keep proportions */
+  height: 100%;               
   width: auto;
   max-width: 100%;
   object-fit: contain;
@@ -52,7 +52,6 @@ a {
   cursor: zoom-in;
 }
 
-/* Popup close-up view */
 .popup {
   display: none;
   position: fixed;
@@ -70,7 +69,7 @@ a {
 
 .popup img,
 .popup video {
-  width: 90vw;                /* always blow up to fill the screen, even tiny images */
+  width: 90vw;                
   height: 90vh;
-  object-fit: contain;        /* keep proportions, no cropping */
+  object-fit: contain;        
 }
