@@ -1,0 +1,29 @@
+<html>
+
+<head>
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+    <h2>Variable Font Exercise</h2>
+    <p id="example1"> Hello I am testing</p>
+
+    <input type="range" id="slider" min="-100" max="100" value="0"></input>
+    <br>
+    <p id="example2"> My Name is Candice</p>
+    <p id="example3"> Add your own font here or edit the examples above</p>
+
+</body>
+<script type="text/javascript">
+
+    let slider = document.getElementById('slider');
+    let p = document.getElementById('example1');
+    console.log(p);
+
+    slider.oninput = function () {
+        p.style.fontVariationSettings = " 'EXPO' " + this.value;
+    }
+
+</script>
+
+</html>

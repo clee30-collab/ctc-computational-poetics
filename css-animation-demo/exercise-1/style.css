@@ -1,0 +1,77 @@
+h1,
+body {
+    font-family: courier;
+}
+
+div {
+    background-color: pink;
+    width: 200px;
+    height: 200px;
+    margin: 20px;
+    padding: 10px;
+
+}
+
+#rotate {
+    animation: rotate 1s linear infinite;
+    
+}
+
+@keyframes rotate {
+    from {
+        transform: rotate(0deg);
+    }
+
+    to {
+        transform: rotate(180deg);
+    }
+
+    /*write your animation instructions here here */
+}
+
+#move {
+    animation: move 1s alternate infinite;
+
+}
+
+@keyframes move {
+    from {
+        translate: 100px 0px;
+    }
+
+    to {
+        translate: 0px 0px;
+    }
+
+    /*write your animation instructions here here */
+
+}
+
+
+#scale {
+    animation: scale 1s linear infinite;
+}
+
+@keyframes scale {
+    from {
+        transform: scale(0%);
+    }
+
+    to {
+        transform: scale(100%);
+    }
+
+    /*write your animation instructions here here */
+
+}
+
+#color {
+    background: rgb(138, 255, 123);
+    transition: background 1s ease;
+}
+
+#color:hover {
+    background: red;
+    transition: background 1s ease;
+    /*write the transition back to a color here */
+}

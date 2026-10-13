@@ -1,0 +1,52 @@
+@font-face {
+    font-family: 'Exposure';
+    src: url('assets/Exposure-trial.ttf');
+}
+
+@font-face {
+    font-family: 'Harber';
+    src: url('assets/Harber-trial.ttf');
+}
+
+html,
+body {
+    margin: 0;
+    font-family: 'Courier New', Courier, monospace;
+
+}
+
+#example1 {
+    font-family: 'Exposure';
+    font-size: 50px;
+    /* font-variation-settings: "EXPO" -100; */
+
+}
+
+#slider {
+    width: 400px;
+}
+
+#example2 {
+    font-family: "Harber";
+    animation: 9s grow infinite linear alternate;
+}
+
+@keyframes grow {
+    from {
+        font-variation-settings: 'wght' 200, 'slnt' -10;
+        font-size: 10px;
+        transform: rotate(0deg);
+    }
+
+    to {
+        font-variation-settings: 'wght' 3, 'slnt' 10;
+        font-size: 80px;
+        transform: rotate(360deg);
+        translate: 100px 300px;
+    }
+}
+
+p:hover {
+    color: red;
+  
+}
