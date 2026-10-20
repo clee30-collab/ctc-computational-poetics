@@ -1,6 +1,5 @@
 :root {
-  font-family: Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;
-  line-height: 1.5;
+font-family: "Space Mono", monospace;  line-height: 1.5;
   font-weight: 400;
 
   font-synthesis: none;
@@ -43,6 +42,7 @@ body {
   border: 2px solid #13297a;
   background: #ffffff;
   color: #13297a;
+  font-family: inherit;
   font-size: 14px;
   text-decoration: none;
   cursor: pointer;
@@ -51,23 +51,6 @@ body {
 .corner-button:hover {
   background: #13297a;
   color: #e4e4e4;
-}
-
-.toast {
-  position: fixed;
-  top: 16px;
-  left: 50%;
-  transform: translateX(-50%);
-  padding: 6px 14px;
-  background: #13297a;
-  color: #e4e4e4;
-  font-size: 14px;
-  opacity: 0;
-  pointer-events: none;
-}
-
-.toast.show {
-  opacity: 1;
 }
 
 body.collection {
@@ -81,16 +64,35 @@ body.collection {
   display: grid;
 }
 
+.collection-note {
+  position: absolute;
+  top: 56px;
+  left: 0;
+  right: 0;
+  margin: 0;
+  font-family: "Jacquarda Bastarda 9 Charted", serif;
+  font-size: 20px;
+  font-weight: 400;
+  color: #13297a;
+  text-align: center;
+  white-space: nowrap;
+}
+
+/* same 32px as the title screen; collection.js puts it under the grid */
 .bird {
-  position: fixed;
-  right: 24px;
-  bottom: 24px;
-  width: 128px;
+  position: absolute;
+  width: 32px;
   image-rendering: pixelated;
+}
+
+.corner-left {
+  right: auto;
+  left: 16px;
 }
 
 
 .intro {
+
   position: fixed;
   inset: 0;
   z-index: 2;
@@ -99,6 +101,7 @@ body.collection {
 }
 
 .intro-text {
+  font-family: "Jacquarda Bastarda 9 Charted", serif;
   position: absolute;
   left: 50%;
   bottom: calc(50% + 48px);
@@ -119,27 +122,27 @@ body.collection {
 }
 
 .intro-hint {
-  position: absolute;
+font-family: "Space Mono", monospace;  line-height: 1.5;  position: absolute;
   left: 50%;
   bottom: 48px;
   transform: translateX(-50%);
   margin: 0;
-  font-size: 13px;
+  font-size: 15px;
   opacity: 0.6;
 }
 
 .intro-start {
-  position: absolute;
+font-family: "Space Mono", monospace;  line-height: 1.5;  position: absolute;
   left: 50%;
   bottom: 40px;
   transform: translateX(-50%);
-  padding: 8px 24px;
+  padding: 6px 8px;
   border: 2px solid #13297a;
   background: #ffffff;
   color: #13297a;
-  font-size: 16px;
+  font-size: 15px;
   text-decoration: none;
-  cursor: pointer;
+  
 }
 
 .intro-start:hover {

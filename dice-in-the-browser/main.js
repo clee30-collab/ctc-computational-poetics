@@ -66,10 +66,7 @@ function step(dir) {
 /** Pick up whatever sits in the next cell in `dir` */
 function grab(dir) {
   player.facing = dir;
-  if (inventory.length >= MAX_ITEMS) {
-    showToast(`your bower is full (${MAX_ITEMS} pixels)`);
-    return;
-  }
+  if (inventory.length >= MAX_ITEMS) return; // the bower is full
   const item = world.take(player.gx + dir.dx, player.gy + dir.dy);
   if (item) inventory.push(item);
 }
@@ -135,15 +132,6 @@ document.getElementById("done").addEventListener("click", () => {
     // storage blocked: the collection page will just show an empty bower
   }
 });
-
-let toastTimeout;
-function showToast(text) {
-  const toast = document.getElementById("toast");
-  toast.textContent = text;
-  toast.classList.add("show");
-  clearTimeout(toastTimeout);
-  toastTimeout = setTimeout(() => toast.classList.remove("show"), 1500);
-}
 
 // ---- drawing ----
 

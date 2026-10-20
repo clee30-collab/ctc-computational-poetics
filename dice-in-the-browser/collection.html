@@ -4,16 +4,23 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Bowerbird — Collection</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cantarell:ital,wght@0,400;0,700;1,400;1,700&family=Jacquarda+Bastarda+9+Charted&family=Space+Mono:ital,wght@0,400;0,700;1,400;1,700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="style.css">
 </head>
 <body class="collection">
-  <a class="corner-button" href="index.html">fly again</a>
+  <a class="corner-button" href="index.html">collect
+    
+  </a>
+
+  <button id="save" class="corner-button corner-left">save</button>
 
   <main>
+    <h1 id="note" class="collection-note">bowerbird made this for you.</h1>
     <div id="grid" class="pixel-grid"></div>
+    <img id="bird" class="bird" src="bowerbird%20images/leftright.png" alt="bowerbird">
   </main>
-
-  <img class="bird" src="bowerbird%20images/leftright.png" alt="bowerbird">
 
   <script type="module" src="collection.js"></script>
 </body>

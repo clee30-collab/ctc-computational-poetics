@@ -1,5 +1,6 @@
+import { loopSound } from "./sound.js";
 
-
+loopSound();
 const LINES = [
   "the male bowerbird typically collects blue objects to build and display structures called “bowers”",
   "bowerbirds are known for having an obsession for the color blue as it is the rarest color found in the natural environment",
@@ -8,7 +9,6 @@ const LINES = [
   "be the bowerbird and collect",
   "wasd or arrows to move, space to collect",
 ];
-
 const text = document.getElementById("intro-text");
 const hint = document.getElementById("intro-hint");
 const start = document.getElementById("start");
