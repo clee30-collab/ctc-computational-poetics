@@ -6,6 +6,8 @@ export class InfiniteCanvas {
   canvas = null;
   context = null;
   cellSize;
+  showGrid;
+  onDraw;
 
   #scale = 1;
   #offsetX = 0;
@@ -14,8 +16,10 @@ export class InfiniteCanvas {
   #touchMode = "single";
   #prevTouch = [null, null];
 
-  constructor(cellSize = 40) {
+  constructor(cellSize = 40, { showGrid = true, onDraw = null } = {}) {
     this.cellSize = cellSize;
+    this.showGrid = showGrid;
+    this.onDraw = onDraw; // called with (context, this) every time the canvas redraws
 
     const canvas = document.getElementById("canvas");
     if (canvas && canvas instanceof HTMLCanvasElement) {
@@ -56,6 +60,20 @@ export class InfiniteCanvas {
     return (this.canvas?.clientWidth ?? 0) / this.#scale;
   }
 
+  get scale() {
+    return this.#scale;
+  }
+
+  /** coded with Claude, assisted in moving the canvas but keep the bird center */
+  centerOn(x, y) {
+    this.#offsetX = Math.round(this.virtualWidth() / 2 - x);
+    this.#offsetY = Math.round(this.virtualHeight() / 2 - y);
+  }
+
+  render() {
+    this.#draw();
+  }
+
   zoom(amount) {
     this.#scale *= amount;
     this.#draw();
@@ -83,10 +101,20 @@ export class InfiniteCanvas {
 
   #draw() {
     if (this.canvas && this.context) {
-      this.canvas.width = document.body.clientWidth;
-      this.canvas.height = document.body.clientHeight;
-      this.context.clearRect(0, 0, this.canvas.width, this.canvas.height);
-      this.#drawGrid();
+    //claude assisted in making the canvas responsive to window size changes and ensurig it runs
+      const dpr = window.devicePixelRatio || 1;
+      const width = document.body.clientWidth, height = document.body.clientHeight;
+      if (this.canvas.width !== Math.round(width * dpr) || this.canvas.height !== Math.round(height * dpr)) {
+        this.canvas.width = Math.round(width * dpr);
+        this.canvas.height = Math.round(height * dpr);
+        this.canvas.style.width = `${width}px`;
+        this.canvas.style.height = `${height}px`;
+      }
+    
+      this.context.setTransform(dpr, 0, 0, dpr, 0, 0);
+      this.context.clearRect(0, 0, width, height);
+      if (this.onDraw) this.onDraw(this.context, this);
+      if (this.showGrid) this.#drawGrid();
     }
   }
 
@@ -94,11 +122,9 @@ export class InfiniteCanvas {
     canvas.addEventListener("touchstart", (event) =>
       this.#onTouchStart(event.touches)
     );
-
     canvas.addEventListener("touchmove", (event) =>
       this.#onTouchMove(event.touches)
     );
-
     window.addEventListener("resize", () => this.#draw());
   }
 
@@ -108,32 +134,23 @@ export class InfiniteCanvas {
     } else if (touches.length >= 2) {
       this.#touchMode = "double";
     }
-
-    // Store the last touches
     this.#prevTouch[0] = touches[0];
     this.#prevTouch[1] = touches[1];
-
     this.#onTouchMove(touches);
   }
 
   #onTouchMove(touches) {
-    // Get first touch coordinates
     const touch0X = touches[0].pageX;
     const touch0Y = touches[0].pageY;
-
     const prevTouch0X = this.#prevTouch[0].pageX;
     const prevTouch0Y = this.#prevTouch[0].pageY;
 
     if (this.#touchMode === "single") {
-      // Single touch (setup click event)
     } else if (this.#touchMode === "double") {
-      // get second touch coordinates
       const touch1X = touches[1].pageX;
       const touch1Y = touches[1].pageY;
-
       const prevTouch1X = this.#prevTouch[1].pageX;
       const prevTouch1Y = this.#prevTouch[1].pageY;
-
       const scaleAmount = this.#zoom(
         [touch0X, touch0Y],
         [prevTouch0X, prevTouch0Y],
@@ -148,13 +165,13 @@ export class InfiniteCanvas {
         [touch1X, touch1Y],
         [prevTouch1X, prevTouch1Y]
       );
-
       this.#draw();
     }
 
     this.#prevTouch[0] = touches[0];
     this.#prevTouch[1] = touches[1];
   }
+
 
   #pan(
     scaleAmount,
@@ -163,30 +180,20 @@ export class InfiniteCanvas {
     [touch1X, touch1Y],
     [prevTouch1X, prevTouch1Y]
   ) {
-    // get midpoints
+   
     const midX = (touch0X + touch1X) / 2;
     const midY = (touch0Y + touch1Y) / 2;
     const prevMidX = (prevTouch0X + prevTouch1X) / 2;
     const prevMidY = (prevTouch0Y + prevTouch1Y) / 2;
-
-    // Calculate how many pixels the midpoints have moved in the x and y direction
     const panX = midX - prevMidX;
     const panY = midY - prevMidY;
 
-    // Scale this movement based on the zoom level
     this.#offsetX += panX / this.#scale;
     this.#offsetY += panY / this.#scale;
-
-    // Get the relative position of the middle of the zoom.
-    // 0, 0 would be top left.
-    // 0, 1 would be top right etc.
     const zoomRatioX = midX / (this.canvas?.clientWidth ?? 1);
     const zoomRatioY = midY / (this.canvas?.clientHeight ?? 1);
-
-    // calculate the amounts zoomed from each edge of the screen
     const unitsZoomedX = this.virtualWidth() * scaleAmount;
     const unitsZoomedY = this.virtualHeight() * scaleAmount;
-
     const unitsAddLeft = unitsZoomedX * zoomRatioX;
     const unitsAddTop = unitsZoomedY * zoomRatioY;
 

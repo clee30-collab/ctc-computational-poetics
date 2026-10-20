@@ -1,0 +1,193 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Organic Patterns</title>
+<style>
+  body{margin:0;background:#111;color:#ddd;font:13px system-ui,sans-serif;display:flex;flex-direction:column;align-items:center;gap:12px;padding:16px}
+  canvas{width:min(640px,100%);aspect-ratio:1;background:#000}
+  .controls{display:flex;flex-wrap:wrap;gap:8px;align-items:center;justify-content:center;max-width:640px}
+  button,select{background:#222;color:#eee;border:1px solid #444;padding:6px 10px;border-radius:6px;cursor:pointer;font:inherit}
+  label{display:flex;gap:6px;align-items:center}
+  code{color:#9be33a}
+</style>
+</head>
+<body>
+<canvas id="c" width="640" height="640"></canvas>
+<div class="controls">
+  <select id="mode">
+    <option value="maze">Fingerprint (green / blue)</option>
+    <option value="burst">Burst (red diamonds)</option>
+  </select>
+  <button id="new">New random</button>
+  <button id="pause">Pause</button>
+  <button id="save">Save PNG</button>
+</div>
+<div class="controls">
+  <label>feed <input id="f" type="range" min="0.010" max="0.080" step="0.0005"></label>
+  <label>kill <input id="k" type="range" min="0.045" max="0.070" step="0.0005"></label>
+  <code id="fk"></code>
+</div>
+
+<script>
+// ---- Gray-Scott reaction-diffusion, masked by a random organic shape ----
+const N = 320, S = N * N;
+const DU = 0.75, DV = 0.375; // lower diffusion = thinner stripes
+let u = new Float32Array(S), v = new Float32Array(S);
+let u2 = new Float32Array(S), v2 = new Float32Array(S);
+const mask = new Uint8Array(S);
+const tint = new Float32Array(S); // background noise for subtle color variation
+
+const PRESETS = {
+  maze:  { F: 0.055,  K: 0.062,  seeds: [4, 12],  steps: 24 },
+  burst: { F: 0.0367, K: 0.0649, seeds: [80, 160], steps: 24 },
+};
+let mode = 'maze', F, K, steps, paused = false;
+
+const cvs = document.getElementById('c'), ctx = cvs.getContext('2d');
+const off = document.createElement('canvas'); off.width = off.height = N;
+const octx = off.getContext('2d'), img = octx.createImageData(N, N);
+
+// ---- random + noise helpers ----
+let rand = Math.random;
+function mulberry32(a){return()=>{a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}}
+function makeNoise(){
+  const G = 64, P = new Float32Array(G * G).map(() => rand());
+  const sm = t => t * t * (3 - 2 * t);
+  return (x, y) => {
+    const xi = Math.floor(x), yi = Math.floor(y), fx = sm(x - xi), fy = sm(y - yi);
+    const a = P[((yi & 63) * G) + (xi & 63)], b = P[((yi & 63) * G) + ((xi + 1) & 63)];
+    const c = P[(((yi + 1) & 63) * G) + (xi & 63)], d = P[(((yi + 1) & 63) * G) + ((xi + 1) & 63)];
+    return a + (b - a) * fx + (c - a) * fy + (a - b - c + d) * fx * fy;
+  };
+}
+function fbm(n, x, y){ let s = 0, amp = .5, fr = 1; for (let o = 0; o < 4; o++){ s += amp * n(x*fr, y*fr); fr *= 2; amp *= .5; } return s; }
+
+// ---- organic masks ----
+function buildMask(){
+  const n1 = makeNoise(), n2 = makeNoise(), n3 = makeNoise();
+  if (mode === 'maze'){
+    // metaballs + domain warp => blobby, river-like shapes
+    const balls = Array.from({length: 3 + (rand()*4|0)}, () => ({x: rand()*N, y: rand()*N, r: (25 + rand()*45) * N / 256}));
+    for (let y = 0; y < N; y++) for (let x = 0; x < N; x++){
+      const wx = x + (fbm(n1, x/40, y/40) - .5) * 120;
+      const wy = y + (fbm(n2, x/40, y/40) - .5) * 120;
+      let field = 0;
+      for (const b of balls){ const dx = wx - b.x, dy = wy - b.y; field += b.r*b.r / (dx*dx + dy*dy + 1); }
+      const i = y*N + x;
+      mask[i] = field > 1.2 ? 1 : 0;
+      tint[i] = fbm(n3, x/30, y/30);
+    }
+  } else {
+    // radial burst: noisy arms out from a center, broken up by noise
+    const cx = N*(.35 + rand()*.3), cy = N*(.35 + rand()*.3), arms = 5 + (rand()*6|0), rot = rand()*6.28;
+    for (let y = 0; y < N; y++) for (let x = 0; x < N; x++){
+      const dx = x - cx, dy = y - cy, r = Math.hypot(dx, dy), a = Math.atan2(dy, dx);
+      const wob = (fbm(n1, x/25, y/25) - .5) * 2.5;
+      const arm = Math.pow(Math.abs(Math.cos(arms*(a + rot)/2 + wob)), 6);
+      const reach = N * .6 * (.25 + .75*arm) * (.7 + .6*fbm(n2, a*3, r/60));
+      const holes = fbm(n3, x/14, y/14) > .38 + r/N*.25;
+      const i = y*N + x;
+      mask[i] = r < reach && holes ? 1 : 0;
+      tint[i] = 0;
+    }
+  }
+}
+
+function reset(newParams){
+  rand = mulberry32((Math.random()*1e9)|0);
+  const p = PRESETS[mode];
+  if (newParams){
+    F = p.F + (rand() - .5) * .004;
+    K = p.K + (rand() - .5) * .002;
+    steps = p.steps;
+  }
+  syncSliders();
+  buildMask();
+  u.fill(1); v.fill(0);
+  const inside = [];
+  for (let i = 0; i < S; i++) if (mask[i]) inside.push(i);
+  const count = p.seeds[0] + (rand() * (p.seeds[1] - p.seeds[0]) | 0);
+  for (let s = 0; s < count && inside.length; s++){
+    const i = inside[rand() * inside.length | 0], sx = i % N, sy = i / N | 0;
+    for (let dy = -2; dy <= 2; dy++) for (let dx = -2; dx <= 2; dx++){
+      const j = ((sy+dy+N)%N)*N + (sx+dx+N)%N;
+      if (mask[j]){ u[j] = .5; v[j] = .25 + rand()*.1; }
+    }
+  }
+}
+
+function step(){
+  for (let y = 0; y < N; y++){
+    const ym = ((y-1+N)%N)*N, y0 = y*N, yp = ((y+1)%N)*N;
+    for (let x = 0; x < N; x++){
+      const xm = (x-1+N)%N, xp = (x+1)%N, i = y0 + x;
+      if (!mask[i]){ u2[i] = 1; v2[i] = 0; continue; }
+      const U = u[i], V = v[i];
+      const lu = .2*(u[y0+xm]+u[y0+xp]+u[ym+x]+u[yp+x]) + .05*(u[ym+xm]+u[ym+xp]+u[yp+xm]+u[yp+xp]) - U;
+      const lv = .2*(v[y0+xm]+v[y0+xp]+v[ym+x]+v[yp+x]) + .05*(v[ym+xm]+v[ym+xp]+v[yp+xm]+v[yp+xp]) - V;
+      const r = U*V*V;
+      u2[i] = U + (DU*lu - r + F*(1 - U));
+      v2[i] = V + (DV*lv + r - (K + F)*V);
+    }
+  }
+  [u, u2] = [u2, u]; [v, v2] = [v2, v];
+}
+
+// ---- rendering ----
+const mix = (a, b, t) => a + (b - a) * t;
+function drawMaze(){
+  const d = img.data;
+  for (let i = 0; i < S; i++){
+    const o = i*4;
+    if (!mask[i]){
+      const t = tint[i];            // light blue water with slight variation
+      d[o] = mix(150, 200, t); d[o+1] = mix(210, 235, t); d[o+2] = mix(225, 245, t);
+    } else {
+      const t = Math.min(1, v[i] * 3.5); // dark green base -> lime stripes
+      d[o] = mix(70, 160, t); d[o+1] = mix(170, 225, t); d[o+2] = mix(40, 60, t);
+    }
+    d[o+3] = 255;
+  }
+  octx.putImageData(img, 0, 0);
+  ctx.imageSmoothingEnabled = true;
+  ctx.drawImage(off, 0, 0, cvs.width, cvs.height);
+}
+
+function drawBurst(){
+  const W = cvs.width, sc = W / N, cell = 3, h = sc * cell * .55;
+  ctx.fillStyle = '#e6f35a'; ctx.fillRect(0, 0, W, W);
+  ctx.strokeStyle = '#e8573a'; ctx.fillStyle = '#e8573a'; ctx.lineWidth = 1.3;
+  const strokes = new Path2D(), fills = new Path2D();
+  for (let y = 0; y < N; y += cell) for (let x = 0; x < N; x += cell){
+    const i = y*N + x, val = v[i];
+    if (!mask[i] || val < .15) continue;
+    const cx = (x + .5) * sc, cy = (y + .5) * sc, s = h * (.6 + val);
+    const path = val > .32 ? fills : strokes;
+    path.moveTo(cx, cy - s); path.lineTo(cx + s, cy); path.lineTo(cx, cy + s); path.lineTo(cx - s, cy); path.closePath();
+  }
+  ctx.stroke(strokes); ctx.fill(fills);
+}
+
+function loop(){
+  if (!paused) for (let s = 0; s < steps; s++) step();
+  mode === 'maze' ? drawMaze() : drawBurst();
+  requestAnimationFrame(loop);
+}
+
+// ---- UI ----
+const $ = id => document.getElementById(id);
+function syncSliders(){ $('f').value = F; $('k').value = K; $('fk').textContent = `f=${F.toFixed(4)} k=${K.toFixed(4)}`; }
+$('mode').onchange = e => { mode = e.target.value; reset(true); };
+$('new').onclick = () => reset(true);
+$('pause').onclick = e => { paused = !paused; e.target.textContent = paused ? 'Play' : 'Pause'; };
+$('save').onclick = () => { const a = document.createElement('a'); a.download = `pattern-${mode}.png`; a.href = cvs.toDataURL(); a.click(); };
+$('f').oninput = e => { F = +e.target.value; syncSliders(); };
+$('k').oninput = e => { K = +e.target.value; syncSliders(); };
+
+reset(true);
+loop();
+</script>
+</body>
+</html>
