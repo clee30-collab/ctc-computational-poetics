@@ -1,7 +1,7 @@
 :root {
   --cell: 20px; 
   --border: calc(var(--cell) * 3);
-  --ink: #13297a
+  --ink: #13297a;
   font-family: "Jacquarda Bastarda 9", serif;
   line-height: 1.5;
   font-weight: 400;
