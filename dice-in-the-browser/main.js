@@ -2,43 +2,24 @@ import { InfiniteCanvas } from "./infinite-canvas.js";
 import { World, CELL } from "./world.js";
 import { BACKGROUND, drawShape } from "./shapes.js";
 
-const MAX_ITEMS = 120; // how many pixels the bird can carry
-const AIM_SCALE = 0.55; // how small the art in the cell about to be grabbed gets
+const MAX_ITEMS = 120; //maximum
+const AIM_SCALE = 0.55; 
+const BIRD_SCALE = 1; 
 
 // A new random world every refresh, or a fixed one with ?seed=1234
 const params = new URLSearchParams(location.search);
 const seed = params.has("seed") ? Number(params.get("seed")) : (Math.random() * 1e9) | 0;
 const world = new World(seed);
-
-/** The invisible inventory: { shape, color } for every pixel picked up */
 const inventory = [];
-
-// ---- bird sprites (all drawn facing left; flipped for right) ----
 
 const SPRITES = ["leftright", "leftrightgrab", "updown", "upgrab", "downgrab"];
 const sprites = {};
 for (const name of SPRITES) {
   const img = new Image();
-  img.onload = () => (sprites[name] = outline(img));
+  img.onload = () => (sprites[name] = img);
   img.src = `bowerbird%20images/${name}.png`;
 }
 
-/** Add a 1px light outline so the navy bird shows up on dark blue blocks */
-function outline(img) {
-  const c = document.createElement("canvas");
-  c.width = img.width + 2;
-  c.height = img.height + 2;
-  const ctx = c.getContext("2d");
-  for (const [dx, dy] of [[0, 1], [2, 1], [1, 0], [1, 2]]) ctx.drawImage(img, dx, dy);
-  ctx.globalCompositeOperation = "source-in";
-  ctx.fillStyle = BACKGROUND;
-  ctx.fillRect(0, 0, c.width, c.height);
-  ctx.globalCompositeOperation = "source-over";
-  ctx.drawImage(img, 1, 1);
-  return c;
-}
-
-// ---- the player ----
 
 const DIRS = {
   w: { dx: 0, dy: -1, name: "up" },
@@ -52,7 +33,7 @@ DIRS.arrowdown = DIRS.s;
 DIRS.arrowright = DIRS.d;
 
 const player = {
-  gx: 0, // grid cell
+  gx: 0, 
   gy: 0,
   facing: DIRS.a,
 };
@@ -62,8 +43,6 @@ function step(dir) {
   player.gx += dir.dx;
   player.gy += dir.dy;
 }
-
-/** Pick up whatever sits in the next cell in `dir` */
 function grab(dir) {
   player.facing = dir;
   if (inventory.length >= MAX_ITEMS) return; // the bower is full
@@ -71,12 +50,8 @@ function grab(dir) {
   if (item) inventory.push(item);
 }
 
-// ---- keyboard ----
-// Each WASD press moves exactly one cell (holding a key doesn't repeat).
-// Space grabs: held together with a direction it grabs that way,
-// on its own it grabs in the direction the bird is facing.
-
-const held = []; // direction keys currently down, most recent last
+//keyboard rules
+const held = []; 
 let spaceDown = false;
 let grabbedThisPress = false;
 
@@ -123,17 +98,36 @@ window.addEventListener("blur", () => {
   spaceDown = false;
 });
 
-// ---- done button: carry the inventory over to the collection page ----
 
-document.getElementById("done").addEventListener("click", () => {
+const HOVER_PAD = 0.4; //hover areas slightly larger
+const popup = document.getElementById("bird-popup");
+const canvasEl = document.getElementById("canvas");
+function overBird(e) {
+  const s = CELL * infiniteCanvas.scale, reach = s / 2 + s * HOVER_PAD;
+  return Math.abs(e.clientX - window.innerWidth / 2) <= reach && Math.abs(e.clientY - window.innerHeight / 2) <= reach;
+}
+
+canvasEl.addEventListener("mousemove", (e) => {
+  const over = overBird(e);
+  popup.hidden = !over;
+  canvasEl.style.cursor = over ? "pointer" : "";
+  const s = CELL * infiniteCanvas.scale;
+  popup.style.bottom = `${window.innerHeight / 2 + s / 2 + 6}px`;
+});
+
+canvasEl.addEventListener("mouseleave", () => {
+  popup.hidden = true;
+  canvasEl.style.cursor = "";
+});
+
+canvasEl.addEventListener("click", (e) => {
+  if (!overBird(e)) return;
   try {
     sessionStorage.setItem("bowerbird-inventory", JSON.stringify(inventory));
   } catch {
-    // storage blocked: the collection page will just show an empty bower
   }
+  location.href = "collection.html";
 });
-
-// ---- drawing ----
 
 function spriteFor() {
   const grabbing = spaceDown;
@@ -153,8 +147,6 @@ function drawScene(ctx, canvas) {
   ctx.fillRect(0, 0, w, h);
 
   world.draw(ctx, canvas);
-
-  // while space is held, the art in the cell about to be grabbed shrinks
   if (spaceDown) {
     const gx = player.gx + player.facing.dx, gy = player.gy + player.facing.dy;
     const item = world.get(gx, gy);
@@ -169,9 +161,12 @@ function drawScene(ctx, canvas) {
 
   const sprite = sprites[spriteFor()];
   if (sprite) {
-    const size = (sprite.width / 32) * s; // sprite is 32px + 2px outline
+    const size = s * BIRD_SCALE;
     const x = canvas.toVirtualX((player.gx + 0.5) * CELL), y = canvas.toVirtualY((player.gy + 0.5) * CELL);
     ctx.save();
+    ctx.beginPath();
+    ctx.rect(x - s / 2, y - s / 2, s, s); 
+    ctx.clip();
     ctx.imageSmoothingEnabled = false;
     ctx.translate(Math.round(x), Math.round(y));
     if (player.facing.name === "right") ctx.scale(-1, 1);
@@ -183,7 +178,7 @@ function drawScene(ctx, canvas) {
 const infiniteCanvas = new InfiniteCanvas(CELL, { showGrid: false, onDraw: drawScene });
 document.addEventListener("contextmenu", (e) => e.preventDefault(), false);
 
-// ---- game loop ----
+
 
 function tick() {
   infiniteCanvas.centerOn((player.gx + 0.5) * CELL, (player.gy + 0.5) * CELL);

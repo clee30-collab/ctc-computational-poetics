@@ -1,8 +1,8 @@
 //the randomness of the seed is assisted with Claude
 
-import { BACKGROUND, BLUES, SHAPES, drawShape } from "./shapes.js";
+import { BACKGROUND, HUES, HUE_WEIGHTS, SHAPES, drawShape, toRGB } from "./shapes.js";
 
-export const CELL = 32; // world px per grid cell (same as the 32px bird sprite)
+export const CELL = 20; // screen px per grid cell; smaller = more cells across the screen (keep it 2x PIXELS in shapes.js)
 const CH = 20; // cells per chunk side
 const BLOCKS = ["block", "blockcorners", "blockcross", "blockdot", "blocksquares"]; // filled squares with an inner circle
 const SYMBOLS = SHAPES.filter((s) => !BLOCKS.includes(s));
@@ -29,114 +29,117 @@ function hash(seed, x, y) {
 const pick = (rand, list) => list[(rand() * list.length) | 0];
 const int = (rand, min, max) => min + ((rand() * (max - min + 1)) | 0);
 
-// ---- region layouts, in chunk-local cell coordinates ----
+const chance = (seed, x, y) => hash(seed, x, y) / 4294967296; // 0..1, fixed per cell
 
-/** A few overlapping rectangles: chunky blocks */
-function rects(rand, ox, oy) {
-  const cells = [];
-  for (let n = int(rand, 1, 3); n > 0; n--) {
-    const x0 = ox + int(rand, -2, 2), y0 = oy + int(rand, -2, 2);
-    const w = int(rand, 2, 5), h = int(rand, 2, 4);
-    for (let y = y0; y < y0 + h; y++) for (let x = x0; x < x0 + w; x++) cells.push([x, y]);
+// ---- colour: pick a family by weight, then one of its shades ----
+
+const COLORS_NO_BLUE = Object.entries(HUES).flatMap(([hue, shades]) => (hue === "blue" ? [] : shades));
+const HUE_OF = Object.fromEntries(Object.entries(HUES).flatMap(([hue, shades]) => shades.map((c) => [c, hue])));
+
+function pickHue(rand, noBlue = false) {
+  const weights = Object.entries(HUE_WEIGHTS).filter(([hue]) => !noBlue || hue !== "blue");
+  let r = rand() * weights.reduce((sum, [, w]) => sum + w, 0);
+  for (const [hue, weight] of weights) if ((r -= weight) < 0) return hue;
+  return "green";
+}
+
+/** One shade of a family, avoiding a colour if given */
+const shade = (rand, hue, not) => pick(rand, HUES[hue].filter((c) => c !== not));
+
+/** Any colour, picked by the family weights (noBlue for things that would make big blue areas) */
+const pickColor = (rand, noBlue = false) => shade(rand, pickHue(rand, noBlue));
+
+// ---- smooth noise, read at world coordinates so terrain flows across chunks ----
+
+const smooth = (t) => t * t * (3 - 2 * t);
+
+function noise(seed, x, y) {
+  const ix = Math.floor(x), iy = Math.floor(y);
+  const fx = smooth(x - ix), fy = smooth(y - iy);
+  const v = (dx, dy) => chance(seed, ix + dx, iy + dy) * 2 - 1;
+  const top = v(0, 0) + (v(1, 0) - v(0, 0)) * fx;
+  const bottom = v(0, 1) + (v(1, 1) - v(0, 1)) * fx;
+  return top + (bottom - top) * fy; // -1..1
+}
+
+/** Layered noise: big shapes plus smaller wobbles on top */
+function fbm(seed, x, y, octaves = 3) {
+  let sum = 0, amp = 1, total = 0;
+  for (let o = 0; o < octaves; o++) {
+    sum += noise(seed + o * 101, x, y) * amp;
+    total += amp;
+    amp *= 0.5;
+    x *= 2;
+    y *= 2;
   }
-  return cells;
+  return sum / total;
 }
 
-/** A thick path that wanders and turns at right angles */
-function corridor(rand, ox, oy) {
-  const cells = [];
-  const dirs = [[1, 0], [-1, 0], [0, 1], [0, -1]];
-  let [dx, dy] = pick(rand, dirs);
-  let x = ox, y = oy;
-  const thick = rand() < 0.4 ? 2 : 1;
-  for (let n = int(rand, 6, 18); n > 0; n--) {
-    for (let t = 0; t < thick; t++) cells.push(dx ? [x, y + t] : [x + t, y]);
-    if (rand() < 0.22) [dx, dy] = pick(rand, dirs.filter(([a, b]) => a !== -dx || b !== -dy));
-    x += dx;
-    y += dy;
-  }
-  return cells;
-}
+// ---- lands: warped cells of territory, each with its own field, hills and texture ----
 
-/** A rectangle outline, sometimes split in two like an "8" */
-function frame(rand, ox, oy) {
-  const cells = [];
-  const w = int(rand, 4, 7), h = int(rand, 4, 7);
-  const split = rand() < 0.4 ? int(rand, 2, h - 3) : -1;
-  for (let y = 0; y < h; y++) {
-    for (let x = 0; x < w; x++) {
-      if (x === 0 || y === 0 || x === w - 1 || y === h - 1 || y === split) cells.push([ox + x, oy + y]);
-    }
-  }
-  return cells;
-}
+const LAND = 11; // rough width of one land, in grid cells
+const FIELDS = ["dot", "dot", "dot", "dot", "thinplus", "ring", "corners"]; // the ground cover
+const BLUE_SCATTER = 0.12; // extra chance a scattered piece is blue (on top of the normal colour weights)
+const ACCENTS = ["plus", "thinplus", "dot", "ring", "diamond", "circle"]; // the scattered contrast pieces
 
-/** A spaced-out grid of symbols, every other cell */
-function scatter(rand, ox, oy) {
-  const cells = [];
-  const w = int(rand, 2, 4), h = int(rand, 2, 4);
-  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) cells.push([ox + x * 2, oy + y * 2]);
-  return cells;
-}
-
-/** An irregular blob that grows one random neighbour at a time */
-function blob(rand, ox, oy) {
-  const cells = [[ox, oy]];
-  const seen = new Set([`${ox},${oy}`]);
-  for (let n = int(rand, 5, 16); n > 0; n--) {
-    const [x, y] = pick(rand, cells);
-    const [dx, dy] = pick(rand, [[1, 0], [-1, 0], [0, 1], [0, -1]]);
-    const key = `${x + dx},${y + dy}`;
-    if (!seen.has(key)) {
-      seen.add(key);
-      cells.push([x + dx, y + dy]);
-    }
-  }
-  return cells;
-}
-
-const LAYOUTS = [rects, corridor, frame, scatter, blob];
-
-// ---- region looks: one shape everywhere, or two looks in a repeating pattern ----
-
+// patterns inside a land's hills; e is the elevation, so "contour" draws topographic bands
 const PATTERNS = [
-  (x, y) => (x + y) % 2, // checkerboard
-  (x, y) => y % 2, // horizontal stripes
-  (x, y) => x % 2, // vertical stripes
-  (x, y) => ((x + y) % 3 === 0 ? 1 : 0), // diagonal stripes
+  () => () => 0, // one look everywhere
+  (w) => (x, y) => Math.floor(y / w) % 2, // horizontal stripes
+  (w) => (x, y) => Math.floor(x / w) % 2, // vertical stripes
+  (w) => (x, y) => Math.floor((x + y) / w) % 2, // diagonal stripes
+  (w) => (x, y) => (Math.floor(x / w) + Math.floor(y / w)) % 2, // checkerboard
+  () => (x, y, e) => Math.floor(e * 14) % 2, // contour lines
 ];
 
-/** Blocks get a circle in the middle: another blue, or the background grey */
+const MIN_CONTRAST = 50; // how different the inner circle must be from its block (0-441)
+const rgbCache = new Map();
+function contrast(a, b) {
+  for (const c of [a, b]) if (!rgbCache.has(c)) rgbCache.set(c, toRGB(c));
+  const [p, q] = [rgbCache.get(a), rgbCache.get(b)];
+  return Math.hypot(p[0] - q[0], p[1] - q[1], p[2] - q[2]);
+}
+
+/** Blocks get a circle in the middle: a sibling shade, another colour, or the background */
 function pickInner(rand, look) {
   delete look.inner;
-  const others = BLUES.filter((c) => c !== look.color);
+  // blue never shares an object with another colour
+  const blue = HUE_OF[look.color] === "blue";
+  const candidates = [...HUES[HUE_OF[look.color]], ...(blue ? [] : [pickColor(rand, true)])];
+  // drop shades too close to the block, so it never reads as a plain filled square
+  let others = candidates.filter((c) => contrast(c, look.color) >= MIN_CONTRAST);
+  if (!others.length) others = (blue ? HUES.blue : COLORS_NO_BLUE).filter((c) => contrast(c, look.color) >= MIN_CONTRAST);
   // the cross / small dot needs a blue to show against the background
+  if (!others.length) others = [BACKGROUND]; // nothing contrasts enough: leave the circle white
   if (look.shape === "blockcross" || look.shape === "blockdot") look.inner = pick(rand, others);
   else if (BLOCKS.includes(look.shape)) look.inner = pick(rand, [...others, BACKGROUND]);
   return look;
 }
 
-/** Returns (x, y) => { shape, color, inner? } for every cell of one region */
-function makeLook(rand, layout) {
-  const a = pickInner(rand, {
-    shape: layout === scatter || rand() < 0.4 ? pick(rand, SYMBOLS) : pick(rand, BLOCKS),
-    color: pick(rand, BLUES),
-  });
-  if (rand() < 0.45) return () => a;
-
-  // the second look swaps the shape, the blue, or both
+function makeLand(rand) {
+  const hue = pickHue(rand); // each land leans toward one colour family
+  const a = pickInner(rand, { shape: rand() < 0.6 ? pick(rand, BLOCKS) : pick(rand, SYMBOLS), color: shade(rand, hue) });
   const b = { ...a };
-  if (rand() < 0.65) b.shape = pick(rand, SHAPES.filter((s) => s !== a.shape));
-  if (b.shape === a.shape || rand() < 0.4) b.color = pick(rand, BLUES.filter((c) => c !== a.color));
+  if (rand() < 0.7) b.shape = pick(rand, SHAPES.filter((s) => s !== a.shape));
+  if (b.shape === a.shape || rand() < 0.4) b.color = rand() < 0.7 ? shade(rand, hue, a.color) : pickColor(rand, true);
   pickInner(rand, b);
-  const pattern = pick(rand, PATTERNS);
-  return (x, y) => (pattern(x, y) ? b : a);
+  return {
+    blue: hue === "blue",
+    hill: [a, b],
+    pattern: pick(rand, PATTERNS)(int(rand, 1, 2)),
+    // a blue land only keeps blue on its hilltops, so blue comes in small patches
+    field: { shape: pick(rand, FIELDS), color: hue !== "blue" && rand() < 0.75 ? shade(rand, hue) : pickColor(rand, true) },
+    sparse: rand() < 0.35, // field only on every other cell
+    rim: rand() < 0.35 ? { shape: pick(rand, ["plus", "thinplus"]), color: pickColor(rand, true) } : null,
+    height: hue === "blue" ? 0 : rand() * 0.2, // how easily this land rises into hills
+  };
 }
 
 // ---- the world ----
 
 export class World {
   chunks = new Map();
+  lands = new Map();
 
   constructor(seed) {
     this.seed = seed | 0;
@@ -169,31 +172,74 @@ export class World {
     return chunk;
   }
 
+  /** Which land a cell belongs to: the nearest jittered site, after warping the cell so borders wander */
+  #landAt(gx, gy) {
+    const s = this.seed;
+    const wx = gx / LAND + fbm(s + 11, gx / 14, gy / 14) * 0.6;
+    const wy = gy / LAND + fbm(s + 23, gx / 14, gy / 14) * 0.6;
+    const ix = Math.floor(wx), iy = Math.floor(wy);
+    let best = Infinity, key;
+    for (let dy = -1; dy <= 1; dy++) {
+      for (let dx = -1; dx <= 1; dx++) {
+        const sx = ix + dx, sy = iy + dy;
+        const px = sx + chance(s + 31, sx, sy), py = sy + chance(s + 37, sx, sy);
+        const d = (px - wx) ** 2 + (py - wy) ** 2;
+        if (d < best) [best, key] = [d, `${sx},${sy}`];
+      }
+    }
+    if (!this.lands.has(key)) {
+      const [sx, sy] = key.split(",").map(Number);
+      this.lands.set(key, { key, ...makeLand(mulberry32(hash(s + 41, sx, sy))) });
+    }
+    return this.lands.get(key);
+  }
+
+  /** Everything about one cell comes from noise at its world position */
+  #cellAt(gx, gy) {
+    const s = this.seed;
+
+    // a few scattered pieces in a contrasting look, anywhere
+    if (chance(s + 3, gx, gy) < 0.012) {
+      const rand = mulberry32(hash(s + 5, gx, gy));
+      return { shape: pick(rand, ACCENTS), color: rand() < BLUE_SCATTER ? shade(rand, "blue") : pickColor(rand) };
+    }
+
+    // rivers run where a slow noise crosses zero; banks either side stay empty
+    const r = Math.abs(fbm(s + 7, gx / 34, gy / 34, 2) + fbm(s + 9, gx / 9, gy / 9, 1) * 0.06);
+    if (r < 0.03) {
+      const rand = mulberry32(hash(s + 13, Math.floor(gx / 40), Math.floor(gy / 40)));
+      return { shape: pick(rand, ["hstripes", "stripes", "dot", "bigdot"]), color: pickColor(rand, true) };
+    }
+    if (r < 0.06) return;
+
+    const land = this.#landAt(gx, gy);
+    const e = fbm(s + 17, gx / 22, gy / 22); // elevation
+
+    if (e < -0.22) return; // valleys are open ground
+    // blue hills are broken up by finer noise, so blue sits in small pockets
+    const pocket = !land.blue || fbm(s + 19, gx / 5, gy / 5, 2) > 0;
+    if (e > 0.2 - land.height && pocket) {
+      // hills: dense, textured by the land's pattern
+      return { ...land.hill[land.pattern(gx, gy, e) & 1] }; // & 1 keeps negative coordinates in 0..1
+    }
+    // the edge of a land can be outlined
+    if (land.rim) {
+      for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+        if (this.#landAt(gx + dx, gy + dy) !== land) return { ...land.rim };
+      }
+    }
+    if (land.sparse && (gx + gy) & 1) return;
+    return { ...land.field };
+  }
+
   #generate(cx, cy) {
-    const rand = mulberry32(hash(this.seed, cx, cy));
-    const owner = new Int16Array(CH * CH).fill(-1); // which region owns each cell
     const cells = new Map();
-    let regions = 0;
-
-    // regions may sit right next to each other, but never on top of each other
-    const free = (x, y) => x >= 0 && y >= 0 && x < CH && y < CH && owner[y * CH + x] === -1;
-
-    for (let attempt = int(rand, 30, 45); attempt > 0; attempt--) {
-      const layout = pick(rand, LAYOUTS);
-      const look = makeLook(rand, layout);
-      const id = regions;
-      const placed = [];
-      for (const [x, y] of layout(rand, int(rand, 0, CH - 1), int(rand, 0, CH - 1))) {
-        if (!free(x, y)) continue;
-        owner[y * CH + x] = id;
-        placed.push([x, y]);
+    for (let y = 0; y < CH; y++) {
+      for (let x = 0; x < CH; x++) {
+        const gx = cx * CH + x, gy = cy * CH + y;
+        const item = this.#cellAt(gx, gy);
+        if (item) cells.set(`${gx},${gy}`, item);
       }
-      if (placed.length < 2) {
-        for (const [x, y] of placed) owner[y * CH + x] = -1; // too small, undo
-        continue;
-      }
-      regions++;
-      for (const [x, y] of placed) cells.set(`${cx * CH + x},${cy * CH + y}`, { ...look(x, y) });
     }
     return cells;
   }
@@ -217,6 +263,7 @@ export class World {
 
   draw(ctx, canvas) {
     const scale = canvas.scale, span = CH * CELL;
+    ctx.imageSmoothingEnabled = false; // keep the pixel art crisp when zoomed
     const left = Math.floor(canvas.toRealX(0) / span);
     const top = Math.floor(canvas.toRealY(0) / span);
     const right = Math.floor(canvas.toRealX(canvas.canvas.clientWidth) / span);

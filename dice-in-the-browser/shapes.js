@@ -1,4 +1,14 @@
 export const BLUES = ["#5f7bdf", "#2e66eb", "#3d8ae6", "#78b6f0"];
+export const HUES = {
+  green: ["#6b8f5e", "rgb(169, 187, 169)", "#a1c08e", "rgb(161, 226, 138)"], 
+  yellow: ["#ffc86f", "#eef4a5", "#ecd06a"],
+  purple: ["#d2c2f0", "#8f8594", "#a898c0"], 
+  maroon: ["#9ad2ab", "#dbb591", "#a95a63"], 
+  magenta: ["#e5bed0",  "#f9b5e4"],
+  blue: BLUES,
+};
+export const HUE_WEIGHTS = { green: 52, yellow: 15, magenta: 9, purple: 8, maroon: 8, blue: 7 };
+export const COLORS = Object.values(HUES).flat();
 export const BACKGROUND = "#ffffff";
 const CIRCLE = 0.36;
 const DOT = 0.17;
@@ -56,7 +66,50 @@ const FRAME_LINES = {
   frametopbottom: [[0, -1], [0, 1]],
 };
 
+
+
+const PIXELS = 10; //8bit look
+const sprites = new Map();
+
+const swatch = document.createElement("canvas").getContext("2d", { willReadFrequently: true });
+export function toRGB(color) {
+  swatch.clearRect(0, 0, 1, 1);
+  swatch.fillStyle = color;
+  swatch.fillRect(0, 0, 1, 1);
+  return [...swatch.getImageData(0, 0, 1, 1).data.slice(0, 3)];
+}
+
+function sprite(shape, color, inner) {
+  const key = `${shape}|${color}|${inner}`;
+  if (sprites.has(key)) return sprites.get(key);
+  const c = document.createElement("canvas");
+  c.width = c.height = PIXELS;
+  const ctx = c.getContext("2d");
+  drawSmooth(ctx, shape, color, 0, 0, PIXELS, inner);
+  const img = ctx.getImageData(0, 0, PIXELS, PIXELS), d = img.data;
+  const palette = [color, inner, BACKGROUND].map(toRGB);
+  for (let i = 0; i < d.length; i += 4) {
+    if (d[i + 3] < 128) { d[i + 3] = 0; continue; }
+    let best = palette[0], bestDist = Infinity;
+    for (const p of palette) {
+      const dist = (d[i] - p[0]) ** 2 + (d[i + 1] - p[1]) ** 2 + (d[i + 2] - p[2]) ** 2;
+      if (dist < bestDist) { best = p; bestDist = dist; }
+    }
+    [d[i], d[i + 1], d[i + 2], d[i + 3]] = [...best, 255];
+  }
+  ctx.putImageData(img, 0, 0);
+  sprites.set(key, c);
+  return c;
+}
+
 export function drawShape(ctx, shape, color, x, y, s, inner = BACKGROUND) {
+  ctx.save();
+  ctx.imageSmoothingEnabled = false;
+  ctx.drawImage(sprite(shape, color, inner), x, y, s, s);
+  ctx.restore();
+}
+
+function drawSmooth(ctx, shape, color, x, y, s, inner = BACKGROUND) {
   const cx = x + s / 2, cy = y + s / 2;
   ctx.fillStyle = ctx.strokeStyle = color; // random color
   ctx.lineCap = "round";

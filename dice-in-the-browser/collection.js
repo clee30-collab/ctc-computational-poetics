@@ -1,7 +1,8 @@
 
 
-import { BLUES, SHAPES, drawShape } from "./shapes.js";
+import { COLORS, SHAPES, drawShape } from "./shapes.js";
 import { CELL } from "./world.js";
+import { frame } from "./frame.js";
 
 const TILE = CELL; 
 
@@ -13,7 +14,7 @@ try {
 }
 
 inventory.sort(
-  (a, b) => BLUES.indexOf(a.color) - BLUES.indexOf(b.color) || SHAPES.indexOf(a.shape) - SHAPES.indexOf(b.shape)
+  (a, b) => COLORS.indexOf(a.color) - COLORS.indexOf(b.color) || SHAPES.indexOf(a.shape) - SHAPES.indexOf(b.shape)
 );
 
 const grid = document.getElementById("grid");
@@ -76,6 +77,9 @@ async function save() {
   ctx.imageSmoothingEnabled = false;
   const b = bird.getBoundingClientRect();
   ctx.drawImage(bird, b.left, b.top, b.width, b.height);
+
+  // the ornate frame
+  ctx.drawImage(frame, 0, 0, frame.offsetWidth, frame.offsetHeight);
 
   image.toBlob((blob) => {
     const link = document.createElement("a");
